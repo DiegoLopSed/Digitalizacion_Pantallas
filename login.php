@@ -40,7 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="container">
         <div class="login-box">
             <div class="logo">
-                <span>FFT</span>
+                <span>F</span>
+                <span>F</span>
+                <span>T</span>
             </div>
             <form action="login.php" method="POST">
                 <input type="text" name="username" placeholder="Usuario" class="input-field" required>

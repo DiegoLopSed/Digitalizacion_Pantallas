@@ -51,7 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="container">
         <div class="login-box">
             <div class="logo">
-                <span>FFT</span>
+                <span>F</span>
+                <span>F</span>
+                <span>T</span>
             </div>
             <form action="register.php" method="POST">
                 <!-- Mensaje de error -->
