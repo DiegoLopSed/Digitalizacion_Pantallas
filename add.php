@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Contenido del archivo generado
             $fileContent = <<<PHP
-
 <?php
 include '../includes/db.php';
 
@@ -52,16 +51,42 @@ if (!\$screen) {
 <head>
     <meta charset="UTF-8">
     <title><?php echo htmlspecialchars(\$screen['name']); ?></title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+        .screen-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            aspect-ratio: 9 / 16;
+            background-color: #111;
+        }
+        .media-content {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
         .fullscreen-img {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.9);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -74,33 +99,33 @@ if (!\$screen) {
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-6">
-    <div class="max-w-5xl mx-auto">
-        <h1 class="text-3xl font-bold mb-6 text-center">Pantalla: <?php echo htmlspecialchars(\$screen['name']); ?></h1>
+<body>
+    <div class="screen-wrapper">
         <?php if (empty(\$mediaItems)): ?>
-            <p class="text-center text-gray-400">No hay contenido multimedia disponible.</p>
+            <p class="text-gray-400 text-center text-lg">No hay contenido disponible.</p>
         <?php else: ?>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <?php foreach (\$mediaItems as \$item): ?>
-                    <div class="bg-white text-gray-900 p-4 rounded shadow">
-                        <?php
-                        \$ext = pathinfo(\$item['file_path'], PATHINFO_EXTENSION);
-                        \$path = "../" . \$item['file_path'];
-                        ?>
-                        <?php if (in_array(strtolower(\$ext), ['jpg', 'jpeg', 'png', 'gif', 'webp'])): ?>
-                            <img src="<?php echo \$path; ?>" class="w-full h-auto rounded cursor-pointer" alt="Imagen" onclick="openFullscreen('<?php echo \$path; ?>')">
-                        <?php elseif (in_array(strtolower(\$ext), ['mp4', 'webm', 'ogg'])): ?>
-                            <video controls class="w-full rounded">
-                                <source src="<?php echo \$path; ?>" type="video/<?php echo htmlspecialchars(\$ext); ?>">
+            <?php foreach (\$mediaItems as \$item): ?>
+                <?php
+                \$path = \$item['file_path'];
+                if (filter_var(\$path, FILTER_VALIDATE_URL)) {
+                    echo '<iframe src="' . htmlspecialchars(\$path) . '" class="media-content border-0" allowfullscreen></iframe>';
+                } else {
+                    \$ext = pathinfo(\$path, PATHINFO_EXTENSION);
+                    \$localPath = "../" . \$path;
+
+                    if (in_array(strtolower(\$ext), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        echo '<img src="' . htmlspecialchars(\$localPath) . '" class="media-content cursor-pointer" alt="Imagen" onclick="openFullscreen(\'' . htmlspecialchars(\$localPath) . '\')">';
+                    } elseif (in_array(strtolower(\$ext), ['mp4', 'webm', 'ogg'])) {
+                        echo '<video controls autoplay loop muted class="media-content">
+                                <source src="' . htmlspecialchars(\$localPath) . '" type="video/' . htmlspecialchars(\$ext) . '">
                                 Tu navegador no soporta videos HTML5.
-                            </video>
-                        <?php else: ?>
-                            <p>Tipo de archivo no soportado para previsualización.</p>
-                        <?php endif; ?>
-                        
-                    </div>
-                <?php endforeach; ?>
-            </div>
+                              </video>';
+                    } else {
+                        echo '<p class="text-center text-red-500">Tipo de archivo no soportado.</p>';
+                    }
+                }
+                ?>
+            <?php endforeach; ?>
         <?php endif; ?>
     </div>
 
