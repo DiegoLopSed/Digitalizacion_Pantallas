@@ -1,5 +1,4 @@
 <?php
-// Incluye autenticación y conexión PDO
 include '../includes/auth.php';
 include '../includes/db.php';
 
@@ -15,56 +14,84 @@ if (!$screen) {
     die("Pantalla no encontrada.");
 }
 
-// Ruta base de los archivos multimedia
+// Ruta de uploads
 $upload_dir = realpath(__DIR__ . '/../assets/uploads') . DIRECTORY_SEPARATOR;
 
-// Obtener último archivo multimedia relacionado
+// Último medio existente
 $stmt = $pdo->prepare("SELECT id, file_path FROM media WHERE screen_id = ? ORDER BY uploaded_at DESC LIMIT 1");
 $stmt->execute([$screen_id]);
 $last_media = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Procesar nueva subida
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['new_media'])) {
-    $file_name = time() . "_" . basename($_FILES["new_media"]["name"]);
-    $relative_path = "assets/uploads/" . $file_name;
-    $absolute_path = $upload_dir . $file_name;
+// Proceso al enviar formulario
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $mode = $_POST['mode'] ?? '';
 
-    if (move_uploaded_file($_FILES["new_media"]["tmp_name"], $absolute_path)) {
-        // Eliminar archivo anterior si existe
-        if ($last_media && file_exists("../" . $last_media['file_path'])) {
-
-            @chmod("../" . $last_media['file_path'], 0666); // intentar permitir escritura
-            unlink("../" . $last_media['file_path']); // eliminar archivo
-            // Eliminar registro anterior
-            $stmt = $pdo->prepare("DELETE FROM media WHERE id = ?");
-            $stmt->execute([$last_media['id']]);
+    if ($last_media) {
+        // Si el último contenido es un archivo local, lo borramos del sistema
+        if (!filter_var($last_media['file_path'], FILTER_VALIDATE_URL) && file_exists("../" . $last_media['file_path'])) {
+            @chmod("../" . $last_media['file_path'], 0666);
+            unlink("../" . $last_media['file_path']);
         }
 
-        // Guardar nuevo registro en la base de datos
-        $stmt = $pdo->prepare("INSERT INTO media (screen_id, file_path) VALUES (?, ?)");
-        if ($stmt->execute([$screen_id, $relative_path])) {
-            $success = "Contenido actualizado correctamente.";
+        // Eliminamos el registro anterior de la tabla
+        $pdo->prepare("DELETE FROM media WHERE id = ?")->execute([$last_media['id']]);
+    }
+
+    // Si se sube archivo
+    if ($mode === 'file' && isset($_FILES['new_media'])) {
+        $file_name = time() . "_" . basename($_FILES["new_media"]["name"]);
+        $relative_path = "assets/uploads/" . $file_name;
+        $absolute_path = $upload_dir . $file_name;
+
+        if (move_uploaded_file($_FILES["new_media"]["tmp_name"], $absolute_path)) {
+            $stmt = $pdo->prepare("INSERT INTO media (screen_id, file_path) VALUES (?, ?)");
+            if ($stmt->execute([$screen_id, $relative_path])) {
+                $success = "Contenido actualizado correctamente (archivo).";
+            } else {
+                $error = "Error al guardar el nuevo archivo.";
+            }
         } else {
-            $error = "Error al guardar en la base de datos.";
+            $error = "Error al subir el archivo.";
         }
-    } else {
-        $error = "Error al subir el archivo.";
+    }
+
+    // Si se agrega una URL externa
+    if ($mode === 'url' && !empty($_POST['external_url'])) {
+        $url = trim($_POST['external_url']);
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            $error = "La URL ingresada no es válida.";
+        } else {
+            // Convertir enlaces de YouTube a formato embed
+            if (preg_match('#https?://(www\.)?youtube\.com/watch\?v=([^\s&]+)#', $url, $matches)) {
+                $url = 'https://www.youtube.com/embed/' . $matches[2];
+            } elseif (preg_match('#https?://youtu\.be/([^\s&]+)#', $url, $matches)) {
+                $url = 'https://www.youtube.com/embed/' . $matches[1];
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO media (screen_id, file_path) VALUES (?, ?)");
+            if ($stmt->execute([$screen_id, $url])) {
+                $success = "Contenido actualizado correctamente (enlace externo).";
+            } else {
+                $error = "Error al guardar la URL.";
+            }
+        }
     }
 }
 
-// Obtener media actual para mostrarla
+
+// Obtener contenido actual
 $stmt = $pdo->prepare("SELECT file_path FROM media WHERE screen_id = ? ORDER BY uploaded_at DESC LIMIT 1");
 $stmt->execute([$screen_id]);
 $media = $stmt->fetch(PDO::FETCH_ASSOC);
-$media_path = $media ? "../" . $media['file_path'] : null;
+$media_path = $media['file_path'] ?? null;
 ?>
 
 <!DOCTYPE html>
-<html>
-
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Editar Multimedia - <?= htmlspecialchars($screen['name']) ?></title>
+    <title>Editar contenido - <?= htmlspecialchars($screen['name']) ?></title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -91,12 +118,30 @@ $media_path = $media ? "../" . $media['file_path'] : null;
             background-color: #f8d7da;
             color: #721c24;
         }
-    </style>
-</head>
 
+        .form-section {
+            display: none;
+            margin-top: 10px;
+        }
+
+        iframe {
+            width: 100%;
+            height: 300px;
+            border: none;
+        }
+    </style>
+    <link rel="stylesheet" href="../assets/css/screen_config.css">
+    <script>
+        function toggleMode() {
+            const mode = document.getElementById("mode").value;
+            document.getElementById("file-section").style.display = (mode === 'file') ? 'block' : 'none';
+            document.getElementById("url-section").style.display = (mode === 'url') ? 'block' : 'none';
+        }
+    </script>
+</head>
 <body>
     <div class="container">
-        <h1>Editar contenido de la pantalla: <?= htmlspecialchars($screen['name']) ?></h1>
+        <h1>Editar contenido de: <?= htmlspecialchars($screen['name']) ?></h1>
         <p><strong>Dominio:</strong> <?= htmlspecialchars($screen['domain']) ?></p>
 
         <?php if ($success): ?>
@@ -107,21 +152,46 @@ $media_path = $media ? "../" . $media['file_path'] : null;
 
         <?php if ($media_path): ?>
             <h3>Contenido actual:</h3>
-            <?php if (preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $media_path)): ?>
-                <img src="<?= htmlspecialchars($media_path) ?>" alt="Media" width="300">
+            <?php if (filter_var($media_path, FILTER_VALIDATE_URL)): ?>
+                <iframe 
+                    src="<?= htmlspecialchars($media_path) ?>" 
+                    allowfullscreen 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share">
+                </iframe>
+                <p class="text-sm text-gray-500">Este contenido proviene de un enlace externo.</p>
+            <?php elseif (preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $media_path)): ?>
+                <img src="../<?= htmlspecialchars($media_path) ?>" alt="Media" width="300">
             <?php else: ?>
-                <p><a href="<?= htmlspecialchars($media_path) ?>" target="_blank">Ver archivo</a></p>
+                <p><a href="../<?= htmlspecialchars($media_path) ?>" target="_blank">Ver archivo</a></p>
             <?php endif; ?>
         <?php endif; ?>
 
-        <h3>Subir nuevo contenido multimedia:</h3>
-        <form action="" method="post" enctype="multipart/form-data">
-            <input type="file" name="new_media" required><br><br>
-            <button type="submit">Actualizar</button>
+        <h3>Actualizar contenido:</h3>
+        <form method="post" enctype="multipart/form-data">
+            <label for="mode"><strong>Tipo de contenido:</strong></label>
+            <select id="mode" name="mode" onchange="toggleMode()" required>
+                <option value="">Selecciona una opción</option>
+                <option value="file">Subir archivo</option>
+                <option value="url">Agregar enlace externo</option>
+            </select>
+
+            <div id="file-section" class="form-section">
+                <p><input type="file" name="new_media" accept="image/*,video/*"></p>
+            </div>
+
+            <div id="url-section" class="form-section">
+                <p><input type="url" name="external_url" placeholder="https://sitio.com/recurso" style="width: 100%;"></p>
+            </div>
+
+            <button type="submit" style="margin-top: 15px;">Actualizar</button>
         </form>
 
         <p><a href="../index.php">← Volver al inicio</a></p>
     </div>
-</body>
 
+    <script>
+        // Mostrar sección activa si se recarga el formulario con valores
+        document.addEventListener("DOMContentLoaded", toggleMode);
+    </script>
+</body>
 </html>
