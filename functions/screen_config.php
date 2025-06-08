@@ -2,7 +2,19 @@
 include '../includes/auth.php';
 include '../includes/db.php';
 
+// Evitar cacheo para forzar siempre nueva carga
+header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
+header("Pragma: no-cache"); // HTTP 1.0.
+header("Expires: 0"); // Proxies
+
 $screen_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+
+// Si no se proporciona un ID válido, redirigir a index
+if ($screen_id <= 0) {
+    header('Location: ../index.php');
+    exit;
+}
+
 $success = $error = "";
 
 // Obtener información de pantalla
@@ -11,7 +23,9 @@ $stmt->execute([$screen_id]);
 $screen = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$screen) {
-    die("Pantalla no encontrada.");
+    // Redirigir si pantalla no existe
+    header('Location: ../index.php');
+    exit;
 }
 
 // Ruta de uploads
@@ -22,22 +36,21 @@ $stmt = $pdo->prepare("SELECT id, file_path FROM media WHERE screen_id = ? ORDER
 $stmt->execute([$screen_id]);
 $last_media = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Proceso al enviar formulario
+// Proceso al enviar formulario (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? '';
 
     if ($last_media) {
-        // Si el último contenido es un archivo local, lo borramos del sistema
+        // Si el último contenido es un archivo local, borrarlo
         if (!filter_var($last_media['file_path'], FILTER_VALIDATE_URL) && file_exists("../" . $last_media['file_path'])) {
             @chmod("../" . $last_media['file_path'], 0666);
             unlink("../" . $last_media['file_path']);
         }
 
-        // Eliminamos el registro anterior de la tabla
+        // Eliminar registro anterior
         $pdo->prepare("DELETE FROM media WHERE id = ?")->execute([$last_media['id']]);
     }
 
-    // Si se sube archivo
     if ($mode === 'file' && isset($_FILES['new_media'])) {
         $file_name = time() . "_" . basename($_FILES["new_media"]["name"]);
         $relative_path = "assets/uploads/" . $file_name;
@@ -53,10 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = "Error al subir el archivo.";
         }
-    }
-
-    // Si se agrega una URL externa
-    if ($mode === 'url' && !empty($_POST['external_url'])) {
+    } elseif ($mode === 'url' && !empty($_POST['external_url'])) {
         $url = trim($_POST['external_url']);
 
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
@@ -77,8 +87,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+
+    // Implementamos Post/Redirect/Get para evitar reenvío al refrescar o volver atrás
+    if ($success || $error) {
+        // Para pasar mensajes con GET (si quieres mostrar luego en GET), codificamos en la URL
+        $params = [];
+        if ($success) $params['success'] = urlencode($success);
+        if ($error) $params['error'] = urlencode($error);
+
+        $location = $_SERVER['PHP_SELF'] . '?id=' . $screen_id;
+        if (!empty($params)) {
+            $location .= '&' . http_build_query($params);
+        }
+
+        header('Location: ' . $location);
+        exit;
+    }
 }
 
+// Obtener mensajes enviados por GET luego del redirect PRG
+if (isset($_GET['success'])) {
+    $success = urldecode($_GET['success']);
+}
+if (isset($_GET['error'])) {
+    $error = urldecode($_GET['error']);
+}
 
 // Obtener contenido actual
 $stmt = $pdo->prepare("SELECT file_path FROM media WHERE screen_id = ? ORDER BY uploaded_at DESC LIMIT 1");
@@ -145,9 +178,9 @@ $media_path = $media['file_path'] ?? null;
         <p><strong>Dominio:</strong> <?= htmlspecialchars($screen['domain']) ?></p>
 
         <?php if ($success): ?>
-            <div class="message success"><?= $success ?></div>
+            <div class="message success"><?= htmlspecialchars($success) ?></div>
         <?php elseif ($error): ?>
-            <div class="message error"><?= $error ?></div>
+            <div class="message error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
         <?php if ($media_path): ?>
