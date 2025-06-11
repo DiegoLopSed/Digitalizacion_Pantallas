@@ -54,13 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <?php if (!empty($error)): ?>
                 <p style="color: red;"><?= htmlspecialchars($error) ?></p>
             <?php endif; ?>
-            <div class="register">
-                <p>¿No tienes una cuenta? <a href="register.php">Regístrate</a></p>
-            </div>
         </div>
-        <div class="help-icon">
-            <a href="#"><span>?</span></a>
-        </div>
+                
     </div>
 </body>
 </html>
