@@ -151,7 +151,6 @@ if (!\$screen) {
 </body>
 </html>
 PHP;
-
             // Crear archivo
             file_put_contents($filePath, $fileContent);
             $success = "Pantalla creada exitosamente: <a class='underline' href='../screens/{$domain}.php' target='_blank'>Ver pantalla</a>";
