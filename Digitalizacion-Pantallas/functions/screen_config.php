@@ -27,7 +27,6 @@ if (!$screen) {
     header('Location: ../index.php');
     exit;
 }
-
 // Ruta de uploads
 $upload_dir = realpath(__DIR__ . '/../assets/uploads') . DIRECTORY_SEPARATOR;
 
