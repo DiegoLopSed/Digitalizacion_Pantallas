@@ -7,7 +7,6 @@ $screen_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 if ($screen_id <= 0) {
     die("ID de pantalla no válido.");
 }
-
 // Obtener datos de la pantalla
 $stmt = $pdo->prepare("SELECT domain FROM screens WHERE id = ?");
 $stmt->execute([$screen_id]);
