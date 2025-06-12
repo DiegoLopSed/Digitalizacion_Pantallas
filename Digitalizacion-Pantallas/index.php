@@ -109,7 +109,6 @@ include 'includes/db.php';
             });
         }
     </script>
-
     <!-- Pie de Página -->
     <footer class="bg-gray-200 text-center p-4">
         <p>&copy; <?php echo date('Y'); ?> - Gestión de Pantallas</p>
