@@ -12,7 +12,6 @@ if (ini_get("session.use_cookies")) {
 
 // Destruir la sesión completamente
 session_destroy();
-
 // Redirigir al login con un código que evita el caché del navegador
 header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
 header("Pragma: no-cache"); // HTTP 1.0.
